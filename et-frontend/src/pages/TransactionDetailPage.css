@@ -1,0 +1,44 @@
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  min-height: calc(100vh - 200px);
+}
+
+.transaction-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.error-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.error-message {
+  text-align: center;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  padding: 3rem 2rem;
+  max-width: 500px;
+}
+
+.error-message h2 {
+  color: #721c24;
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.error-message p {
+  color: #721c24;
+  margin: 1rem 0;
+}
+
+.error-message .btn {
+  margin-top: 1.5rem;
+}

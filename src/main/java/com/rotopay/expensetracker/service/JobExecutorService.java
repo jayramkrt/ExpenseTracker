@@ -1,6 +1,5 @@
 package com.rotopay.expensetracker.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rotopay.expensetracker.api.common.dto.RawTransaction;
 import com.rotopay.expensetracker.api.common.dto.TransactionClassificationResult;
@@ -24,7 +23,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**

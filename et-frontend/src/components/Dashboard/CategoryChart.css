@@ -1,0 +1,70 @@
+
+.category-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.category-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.category-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.category-icon {
+  font-size: 1.5rem;
+  min-width: 30px;
+}
+
+.category-name {
+  font-weight: 500;
+  color: #2c3e50;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-container {
+  flex: 1;
+  height: 30px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+  border-radius: 4px;
+}
+
+.category-stats {
+  display: flex;
+  gap: 1rem;
+  min-width: 140px;
+  text-align: right;
+}
+
+.amount {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.percentage {
+  color: #6c757d;
+  font-size: 0.9rem;
+  min-width: 50px;
+}
+
+.no-data {
+  text-align: center;
+  color: #6c757d;
+  padding: 2rem;
+}
