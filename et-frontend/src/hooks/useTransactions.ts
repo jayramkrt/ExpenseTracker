@@ -1,5 +1,5 @@
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { apiClient } from '../api';
 import type { TransactionResponse, TransactionUpdateRequest } from '../api/types';
 import { useFetch } from './useApi';
@@ -27,6 +27,14 @@ export function useTransactions(
       ),
     [page, categoryId, startDate, endDate]
   );
+
+
+  useEffect(() => {
+    if (data) {
+      setTransactions(data.content);
+      setTotalPages(data.totalPages);
+    }
+  }, [data]);
 
   const updateTransactions = useCallback(() => {
     if (data) {

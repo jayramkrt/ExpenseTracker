@@ -1,5 +1,5 @@
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { apiClient } from '../api';
 import type { StatementResponse, StatementUploadResponse } from '../api/types';
 import { useFetch } from './useApi';
@@ -16,6 +16,13 @@ export function useStatements() {
     () => apiClient.statements.getStatements(page, 10),
     [page]
   );
+
+  useEffect(() => {
+    if (data) {
+      setStatements(data.content);
+      setTotalPages(data.totalPages);
+    }
+  }, [data]);
 
   // Update statements when data changes
   const updateStatements = useCallback(() => {

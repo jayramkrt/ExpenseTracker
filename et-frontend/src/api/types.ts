@@ -36,7 +36,7 @@ export interface StatementStatusResponse {
   errorMessage?: string;
 }
 
-export interface PaginatedResponse<T> {
+/*export interface PaginatedResponse<T> {
   content: T[];
   pageNumber: number;
   pageSize: number;
@@ -44,6 +44,16 @@ export interface PaginatedResponse<T> {
   totalPages: number;
   isFirst: boolean;
   isLast: boolean;
+}*/
+
+export interface PaginatedResponse<T> {
+  content: T[];
+  number: number;       // Spring uses "number" not "pageNumber"
+  size: number;         // Spring uses "size" not "pageSize"
+  totalElements: number;
+  totalPages: number;
+  first: boolean;       // Spring uses "first" not "isFirst"
+  last: boolean;        // Spring uses "last" not "isLast"
 }
 
 // ==================== TRANSACTIONS ====================
