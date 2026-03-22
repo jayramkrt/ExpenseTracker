@@ -1,4 +1,5 @@
 package com.rotopay.expensetracker.config;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
@@ -13,6 +14,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @Configuration
 public class WebClientConfig {
+
+    /**
+     * Read timeout for Ollama LLM calls.
+     * Local inference (e.g. qwen2.5:7b) can take 60-120+ seconds.
+     * Default: 300000ms (5 minutes). Override via pfa.llm.timeout in application.properties.
+     */
+    @Value("${pfa.llm.timeout:300000}")
+    private int llmReadTimeoutMs;
 
     /**
      * Create RestTemplate bean with timeout configuration.
@@ -33,8 +42,8 @@ public class WebClientConfig {
     @Bean
     public ClientHttpRequestFactory clientHttpRequestFactory() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10000);  // 10 seconds
-        factory.setReadTimeout(30000);     // 30 seconds
+        factory.setConnectTimeout(10000);      // 10 seconds to connect
+        factory.setReadTimeout(llmReadTimeoutMs); // configurable, default 5 minutes for local LLM
         return factory;
     }
 

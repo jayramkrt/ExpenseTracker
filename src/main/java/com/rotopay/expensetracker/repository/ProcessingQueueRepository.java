@@ -2,9 +2,12 @@ package com.rotopay.expensetracker.repository;
 
 import com.rotopay.expensetracker.entity.ProcessingQueue;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,5 +65,17 @@ public interface ProcessingQueueRepository extends JpaRepository<ProcessingQueue
      * Find jobs by user.
      */
     List<ProcessingQueue> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    /**
+     * Atomically claim a job: flips status pending → in_progress in a single
+     * UPDATE statement so concurrent scheduler threads cannot double-claim.
+     * Returns the number of rows updated (1 = claimed, 0 = already taken).
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE ProcessingQueue pq " +
+            "SET pq.status = 'in_progress', pq.startedAt = :now " +
+            "WHERE pq.id = :id AND pq.status = 'pending'")
+    int atomicClaimJob(UUID id, LocalDateTime now);
 }
 

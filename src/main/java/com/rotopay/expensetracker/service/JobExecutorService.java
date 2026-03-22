@@ -24,6 +24,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Scheduled job executor for the ProcessingQueue.
@@ -56,6 +57,7 @@ public class JobExecutorService {
     private final TransactionRepository transactionRepository;
     private final PDFProcessingService pdfProcessingService;
     private final OllamaClientService ollamaClientService;
+    private final TransactionRuleClassifier ruleClassifier;
     private final ObjectMapper objectMapper;
 
     // How many jobs to process per scheduler tick (prevents memory spikes)
@@ -200,27 +202,34 @@ public class JobExecutorService {
     // =========================================================================
 
     /**
-     * Atomically claim a job by flipping status pending → in_progress.
-     * Returns false if job was already claimed (concurrent safety).
+     * Atomically claim a job via a single UPDATE WHERE status = 'pending'.
+     * If another thread already claimed it the UPDATE touches 0 rows → returns false.
+     * This eliminates the TOCTOU race that existed with the old read-then-write approach.
      */
     private boolean claimJob(ProcessingQueue job) {
-        // Re-fetch to get latest DB state
-        ProcessingQueue fresh = processingQueueRepository.findById(job.getId()).orElse(null);
-        if (fresh == null || !fresh.isPending())
-            return false;
-
-        fresh.setStatus("in_progress");
-        fresh.setStartedAt(LocalDateTime.now());
-        processingQueueRepository.save(fresh);
-
-        // Update local reference
+        LocalDateTime now = LocalDateTime.now();
+        int updated = processingQueueRepository.atomicClaimJob(job.getId(), now);
+        if (updated == 0) {
+            return false; // already claimed by another thread
+        }
+        // Sync in-memory fields
         job.setStatus("in_progress");
-        job.setStartedAt(fresh.getStartedAt());
+        job.setStartedAt(now);
         return true;
     }
 
     /**
-     * Classify each RawTransaction via Ollama and build Transaction entities.
+     * Classify each RawTransaction and build Transaction entities.
+     *
+     * <p>Classification order (two layers to minimise LLM calls):
+     * <ol>
+     *   <li><b>Rule-based</b> — keyword/brand map in {@link TransactionRuleClassifier}.
+     *       Covers ~70-90 % of typical Indian bank statement transactions.</li>
+     *   <li><b>Ollama LLM fallback</b> — only invoked when rules return {@code null}
+     *       (i.e. no keyword matched with enough confidence).</li>
+     * </ol>
+     *
+     * <p>Same two-layer strategy applies to recurring detection.
      */
     private List<Transaction> classifyAndBuildTransactions(
             List<RawTransaction> rawTransactions,
@@ -228,16 +237,43 @@ public class JobExecutorService {
 
         List<Transaction> transactions = new ArrayList<>();
 
+        // Counters for efficency reporting
+        AtomicInteger categoryRuleHits  = new AtomicInteger();
+        AtomicInteger categoryLlmHits   = new AtomicInteger();
+        AtomicInteger recurringRuleHits = new AtomicInteger();
+        AtomicInteger recurringLlmHits  = new AtomicInteger();
+
         for (RawTransaction raw : rawTransactions) {
             try {
-                // Classify category
-                TransactionClassificationResult classification = ollamaClientService.classifyTransaction(
-                        raw.getDescription(),
-                        raw.getAmount());
-
-                // Detect recurring
                 String merchant = raw.getMerchant() != null ? raw.getMerchant() : "";
-                boolean recurring = ollamaClientService.detectRecurring(merchant, raw.getDescription());
+
+                // ── LAYER 1: Rule-based category classification ────────────────
+                TransactionClassificationResult classification =
+                        ruleClassifier.classifyByRules(raw.getDescription(), merchant, raw.getAmount());
+
+                if (classification != null) {
+                    categoryRuleHits.incrementAndGet();
+                } else {
+                    // ── LAYER 2: Ollama fallback ───────────────────────────────
+                    log.debug("No rule match for '{}', falling back to LLM", raw.getDescription());
+                    classification = ollamaClientService.classifyTransaction(
+                            raw.getDescription(), raw.getAmount());
+                    categoryLlmHits.incrementAndGet();
+                }
+
+                // ── LAYER 1: Rule-based recurring detection ────────────────────
+                Boolean recurringRule = ruleClassifier.detectRecurringByRules(raw.getDescription(), merchant);
+                boolean recurring;
+
+                if (recurringRule != null) {
+                    recurring = recurringRule;
+                    recurringRuleHits.incrementAndGet();
+                } else {
+                    // ── LAYER 2: Ollama fallback ───────────────────────────────
+                    log.debug("No recurring rule for '{}', falling back to LLM", raw.getDescription());
+                    recurring = ollamaClientService.detectRecurring(merchant, raw.getDescription());
+                    recurringLlmHits.incrementAndGet();
+                }
 
                 // Parse amount — strip currency symbols, handle Indian comma format
                 BigDecimal amount = parseAmount(raw.getAmount());
@@ -266,6 +302,12 @@ public class JobExecutorService {
             }
         }
 
+        int total = rawTransactions.size();
+        log.info("Classification complete — {}/{} by rules, {}/{} via LLM | "
+                + "Recurring — {}/{} by rules, {}/{} via LLM",
+                categoryRuleHits.get(), total, categoryLlmHits.get(), total,
+                recurringRuleHits.get(), total, recurringLlmHits.get(), total);
+
         return transactions;
     }
 
@@ -286,7 +328,9 @@ public class JobExecutorService {
     private void failJob(ProcessingQueue job, String errorMessage) {
         job.setRetryCount(job.getRetryCount() + 1);
         job.setErrorMessage(truncate(errorMessage, 500));
-        job.setStatus(job.canRetry() ? "failed" : "failed"); // always failed; retry poller re-queues
+        // job.setStatus(job.canRetry() ? "failed" : "failed"); // always failed; retry
+        // poller re-queues
+        job.setStatus("failed");
         job.setCompletedAt(LocalDateTime.now());
         processingQueueRepository.save(job);
 

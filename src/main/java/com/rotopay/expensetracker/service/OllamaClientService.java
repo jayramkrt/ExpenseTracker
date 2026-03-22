@@ -33,7 +33,7 @@ public class OllamaClientService {
     @Value("${pfa.llm.endpoint:http://localhost:11434}")
     private String ollamaEndpoint;
 
-    @Value("${pfa.llm.model:mistral}")
+    @Value("${pfa.llm.model:qwen2.5:7b}")
     private String modelName;
 
     @Value("${pfa.llm.timeout:30000}")
@@ -199,15 +199,23 @@ public class OllamaClientService {
             log.trace("Ollama request: {}", requestJson);
 
             // Use PostForObject with custom timeout
-            JsonNode response = restTemplate.postForObject(url, request, JsonNode.class);
+            //JsonNode response = restTemplate.postForObject(url, request, JsonNode.class);
+            String rawResponse = restTemplate.postForObject(url, request, String.class);
+            if (rawResponse == null || rawResponse.isBlank()) {
+                throw new RuntimeException("Empty response from Ollama");
+            }
+            log.debug("Raw Ollama response: {}", rawResponse);
 
-            if (response != null && response.has("response")) {
-                String result = response.get("response").asText();
-                log.trace("Ollama response: {}", result);
-                return result;
+            JsonNode json = objectMapper.readTree(rawResponse);
+
+            if (!json.has("response")) {
+                throw new RuntimeException("Invalid response format: missing 'response'");
             }
 
-            throw new RuntimeException("Invalid Ollama response");
+
+            String result = json.get("response").asText();
+            log.trace("Ollama response: {}", result);
+            return result;
         } catch (RestClientException e) {
             log.error("Ollama API call failed. Is it running? (ollama serve)", e);
             throw e;
